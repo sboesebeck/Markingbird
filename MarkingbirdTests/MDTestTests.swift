@@ -75,8 +75,8 @@ class MDTestTests: XCTestCase {
                     // Transform the source into the actual result, and
                     // normalize both the actual and expected results
                     var m = Markdown()                    
-                    let actualResult = removeWhitespace(m.transform(sourceContent))
-                    let expectedResult = removeWhitespace(expectedContent)
+                    let actualResult = removeWhitespace(m.transform(sourceContent! as String))
+                    let expectedResult = removeWhitespace(expectedContent! as String)
                     
                     let testCaseData = TestCaseData(
                         actualName: actualName,
@@ -110,14 +110,14 @@ class MDTestTests: XCTestCase {
             options: NSRegularExpressionOptions.AnchorsMatchLines,
             error: &error)
         XCTAssertNil(error)
-        str = newlineRegex.stringByReplacingMatchesInString(str, options: NSMatchingOptions(0), range: NSMakeRange(0, str.length), withTemplate: "")
+        str = newlineRegex!.stringByReplacingMatchesInString(str as String, options: NSMatchingOptions(0), range: NSMakeRange(0, str.length), withTemplate: "")
     
         // remove leading space at the start of lines
         let leadingSpaceRegex = NSRegularExpression(
             pattern: "^\\s+",
             options: NSRegularExpressionOptions.AnchorsMatchLines,
             error: &error);
-        str = leadingSpaceRegex.stringByReplacingMatchesInString(str, options: NSMatchingOptions(0), range: NSMakeRange(0, str.length), withTemplate: "")
+        str = leadingSpaceRegex!.stringByReplacingMatchesInString(str as String, options: NSMatchingOptions(0), range: NSMakeRange(0, str.length), withTemplate: "")
     
         // remove all newlines
         str = str.stringByReplacingOccurrencesOfString("\n", withString: "")
