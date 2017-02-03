@@ -3,7 +3,7 @@ import XCTest
 
 class SimpleTests: XCTestCase {
     
-    private var m: Markdown!
+    fileprivate var m: Markdown!
     
     override func setUp() {
         // Create a new instance for each test
@@ -188,6 +188,36 @@ class SimpleTests: XCTestCase {
     {
         let input = "* * *\n\n***\n\n*****\n\n- - -\n\n---------------------------------------\n\n"
         let expected = "<hr />\n\n<hr />\n\n<hr />\n\n<hr />\n\n<hr />\n"
+        
+        let actual = m.transform(input)
+        
+        XCTAssertEqual(expected, actual)
+    }
+    
+    func testNormalizeCR()
+    {
+        let input = "# Header\r\rBody"
+        let expected = "<h1>Header</h1>\n\n<p>Body</p>\n"
+        
+        let actual = m.transform(input)
+        
+        XCTAssertEqual(expected, actual)
+    }
+    
+    func testNormalizeCRLF()
+    {
+        let input = "# Header\r\n\r\nBody"
+        let expected = "<h1>Header</h1>\n\n<p>Body</p>\n"
+        
+        let actual = m.transform(input)
+        
+        XCTAssertEqual(expected, actual)
+    }
+    
+    func testNormalizeLF()
+    {
+        let input = "# Header\n\nBody"
+        let expected = "<h1>Header</h1>\n\n<p>Body</p>\n"
         
         let actual = m.transform(input)
         

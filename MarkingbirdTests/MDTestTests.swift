@@ -13,12 +13,12 @@ class MDTestTests: XCTestCase {
             
             // If there is a difference, print it in a more readable way than
             // XCTest does
-            switch firstDifferenceBetweenStrings(test.actualResult, test.expectedResult) {
-            case .NoDifference:
+            switch firstDifferenceBetweenStrings(test.actualResult, s2: test.expectedResult) {
+            case .noDifference:
                 break;
-            case .DifferenceAtIndex(let index):
-                let prettyDiff = prettyFirstDifferenceBetweenStrings(test.actualResult, test.expectedResult)
-                println("\n====\n\(test.actualName): \(prettyDiff)\n====\n")
+            case .differenceAtIndex:
+                let prettyDiff = prettyFirstDifferenceBetweenStrings(test.actualResult, s2: test.expectedResult)
+                print("\n====\n\(test.actualName): \(prettyDiff)\n====\n")
             }
             
             XCTAssertEqual(test.actualResult, test.expectedResult,
@@ -43,13 +43,17 @@ class MDTestTests: XCTestCase {
     func getTests() -> [TestCaseData] {
         var tests = Array<TestCaseData>()
         
-        let bundle = NSBundle(forClass: MDTestTests.self)
-        let resourcePath = bundle.resourcePath!
-        let folderPath = resourcePath.stringByAppendingPathComponent(folder)
+        let bundle = Bundle(for: MDTestTests.self)
+        let resourceURL = bundle.resourceURL!
+        let folderURL = resourceURL.appendingPathComponent(folder)
         
-        var error: NSError?
-        let folderContents = NSFileManager.defaultManager().contentsOfDirectoryAtPath(folderPath, error: &error)
-        XCTAssertNil(error)
+        let folderContents: [AnyObject]?
+        do {
+            folderContents = try FileManager.default.contentsOfDirectory(atPath: folderURL.path) as [AnyObject]?
+        } catch {
+            XCTAssertNil(error)
+            folderContents = nil
+        }
         XCTAssertNotNil(folderContents)
         XCTAssertEqual(49, folderContents!.count, "should find 49 files in the testfiles/mdtest-1.1 directory")
         
@@ -58,32 +62,41 @@ class MDTestTests: XCTestCase {
                 if filename.hasSuffix(".html") {
                     // Load the expected result content
                     let expectedName = filename
-                    let expectedPath = folderPath.stringByAppendingPathComponent(expectedName)
-                    let expectedContent = NSString(contentsOfFile: expectedPath,
-                        encoding: NSUTF8StringEncoding,
-                        error: &error)
-                    XCTAssertNil(error)
+                    
+                    let expectedURL = folderURL.appendingPathComponent(expectedName)
+                    let expectedContent: String?
+                    do {
+                        expectedContent = try String(contentsOfURL: expectedURL, encoding: String.Encoding.utf8)
+                    } catch {
+                        XCTAssertNil(error)
+                        expectedContent = nil
+                    }
                     
                     // Load the source content
-                    let actualName = expectedName.stringByDeletingPathExtension.stringByAppendingPathExtension("text")!
-                    let sourcePath = folderPath.stringByAppendingPathComponent(actualName)
-                    let sourceContent = NSString(contentsOfFile: sourcePath,
-                        encoding: NSUTF8StringEncoding,
-                        error: &error)
-                    XCTAssertNil(error)
+                    let actualName = NSURL(string: expectedName)!.deletingPathExtension?.appendingPathExtension("text").path
+                    let sourceURL = folderURL.appendingPathComponent(actualName!)
+                    let sourceContent: String?
+                    do {
+                        sourceContent = try String(contentsOfURL: sourceURL, encoding: String.Encoding.utf8)
+                    } catch {
+                        XCTAssertNil(error)
+                        sourceContent = nil
+                    }
                     
-                    // Transform the source into the actual result, and
-                    // normalize both the actual and expected results
-                    var m = Markdown()                    
-                    let actualResult = removeWhitespace(m.transform(sourceContent! as String))
-                    let expectedResult = removeWhitespace(expectedContent! as String)
-                    
-                    let testCaseData = TestCaseData(
-                        actualName: actualName,
-                        expectedName: expectedName,
-                        actualResult: actualResult,
-                        expectedResult: expectedResult)
-                    tests.append(testCaseData)
+                    if sourceContent != nil {
+                        // Transform the source into the actual result, and
+                        // normalize both the actual and expected results
+                        var m = Markdown()                    
+                        let actualResult = removeWhitespace(m.transform(sourceContent!))
+                        let expectedResult = removeWhitespace(expectedContent!)
+                        
+                        let testCaseData = TestCaseData(
+                            actualName: actualName!,
+                            expectedName: expectedName,
+                            actualResult: actualResult,
+                            expectedResult: expectedResult)
+                        tests.append(testCaseData)
+                    }
                 }
             }
         }
@@ -93,34 +106,42 @@ class MDTestTests: XCTestCase {
     
     /// Removes any empty newlines and any leading spaces at the start of lines
     /// all tabs, and all carriage returns
-    func removeWhitespace(s: String) -> String {
+    func removeWhitespace(_ s: String) -> String {
         var str = s as NSString
         
         // Standardize line endings
-        str = str.stringByReplacingOccurrencesOfString("\r\n", withString: "\n")    // DOS to Unix
-        str = str.stringByReplacingOccurrencesOfString("\r", withString:"\n")       // Mac to Unix
+        str = str.replacingOccurrences(of: "\r\n", with: "\n") as NSString    // DOS to Unix
+        str = str.replacingOccurrences(of: "\r", with:"\n") as NSString       // Mac to Unix
     
         // remove any tabs entirely
-        str = str.stringByReplacingOccurrencesOfString("\t", withString: "")
+        str = str.replacingOccurrences(of: "\t", with: "") as NSString
     
         // remove empty newlines
-        var error: NSError?
-        let newlineRegex = NSRegularExpression(
-            pattern: "^\\n",
-            options: NSRegularExpressionOptions.AnchorsMatchLines,
-            error: &error)
-        XCTAssertNil(error)
-        str = newlineRegex!.stringByReplacingMatchesInString(str as String, options: NSMatchingOptions(0), range: NSMakeRange(0, str.length), withTemplate: "")
+        let newlineRegex: NSRegularExpression?
+        do {
+            newlineRegex = try NSRegularExpression(
+                        pattern: "^\\n",
+                        options: NSRegularExpression.Options.anchorsMatchLines)
+        } catch {
+            XCTAssertNil(error)
+            newlineRegex = nil
+        }
+        str = newlineRegex!.stringByReplacingMatches(in: str as String, options: NSRegularExpression.MatchingOptions(rawValue: 0), range: NSMakeRange(0, str.length), withTemplate: "") as NSString
     
         // remove leading space at the start of lines
-        let leadingSpaceRegex = NSRegularExpression(
-            pattern: "^\\s+",
-            options: NSRegularExpressionOptions.AnchorsMatchLines,
-            error: &error);
-        str = leadingSpaceRegex!.stringByReplacingMatchesInString(str as String, options: NSMatchingOptions(0), range: NSMakeRange(0, str.length), withTemplate: "")
+        let leadingSpaceRegex: NSRegularExpression?
+        do {
+            leadingSpaceRegex = try NSRegularExpression(
+                        pattern: "^\\s+",
+                        options: NSRegularExpression.Options.anchorsMatchLines)
+        } catch {
+            XCTAssertNil(error)
+            leadingSpaceRegex = nil
+        };
+        str = leadingSpaceRegex!.stringByReplacingMatches(in: str as String, options: NSRegularExpression.MatchingOptions(rawValue: 0), range: NSMakeRange(0, str.length), withTemplate: "") as NSString
     
         // remove all newlines
-        str = str.stringByReplacingOccurrencesOfString("\n", withString: "")
+        str = str.replacingOccurrences(of: "\n", with: "") as NSString
     
         return str as String
     }
